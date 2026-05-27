@@ -1,0 +1,33 @@
+# Environment — NEVER commit private keys or RPC URLs
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+.npm/
+
+# Truffle / Hardhat
+.truffle-cache/
+.build/
+
+# Experiment results (large CSVs generated locally)
+scripts/sepolia_gas_logs.csv
+scripts/posterior_fidelity_*.csv
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp

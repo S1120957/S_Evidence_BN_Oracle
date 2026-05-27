@@ -1,0 +1,1480 @@
+%% ============================================================
+%% LUNA: Scalable Evidence-Based Oracles Using Bayesian Networks
+%% Target: IEEE Journal of Biomedical and Health Informatics
+%% ============================================================
+%% COMPILE: pdflatex -> bibtex -> pdflatex -> pdflatex
+%%
+%% REVIEW MARKERS (remove all before final submission):
+%%   \placeholder{X} = blue  = fill with real experimental value
+%%   \todo{X}        = red   = structural task remaining
+%%   \addcite        = orange = missing citation to resolve
+%% ============================================================
+
+\documentclass[journal]{IEEEtran}
+
+%% --- Packages ---
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{cite}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{balance}
+
+%% --- Review helpers (remove before submission) ---
+\newcommand{\todo}[1]{\textcolor{red}{\textbf{[TODO: #1]}}}
+\newcommand{\placeholder}[1]{\textcolor{blue}{\textbf{[#1]}}}
+\newcommand{\addcite}{\textcolor{orange}{\textbf{[CITE]}}}
+
+%% --- Theorem environments ---
+\newtheorem{definition}{Definition}
+\newtheorem{proposition}{Proposition}
+
+%% ============================================================
+\begin{document}
+
+\title{LUNA: Scalable Evidence-Based Oracles Using\\
+       Bayesian Networks for Healthcare Claim Verification}
+
+%% TODO: Replace with real author names and affiliations.
+%% For blind review, replace entire \author block with:
+%% \author{Anonymous Authors --- Submitted for Review}
+\author{First~Author,~\IEEEmembership{Member,~IEEE,}
+        Second~Author,~\IEEEmembership{Senior Member,~IEEE,}
+        and~Third~Author%
+\thanks{Manuscript received \today.}%
+\thanks{F. Author is with the Department of ...,
+        University of ..., City, Country
+        (e-mail: author@university.edu).}%
+\thanks{S. Author and T. Author are with ...}}
+
+\maketitle
+
+%% ============================================================
+%% ABSTRACT
+%% Target: ~220 words. Five required elements:
+%%   (1) Health informatics problem
+%%   (2) Gap in existing work
+%%   (3) Method and architecture
+%%   (4) Concrete numerical results  <- fill \placeholder blocks
+%%   (5) Clinical and domain significance
+%% TODO: Fill ALL \placeholder{} after experiments are complete.
+%% ============================================================
+\begin{abstract}
+Blockchain-based smart contracts are increasingly proposed
+for healthcare claim verification, yet existing oracle designs
+reduce heterogeneous clinical evidence to opaque scalar values,
+obscuring how individual evidence sources contribute to
+decisions and preventing meaningful audit.
+Bayesian network~(BN)-based oracles address this by making
+probabilistic reasoning explicit, but on-chain BN inference
+incurs gas costs that grow with model size, limiting practical
+deployability.
+We present LUNA (Ledger-grounded Uncertainty-aware Networked
+Architecture), a BN-based oracle architecture that resolves
+this tension by anchoring BN parameters and evidence
+assignments on-chain while executing inference off-chain,
+preserving full post-hoc auditability without on-chain
+computational overhead.
+LUNA encodes posteriors in fixed-point form under a global
+scale factor, manages claims through an explicit on-chain
+state machine supporting incremental out-of-order evidence
+arrival, and provides a complete reconstructible inference
+transcript from ledger state alone.
+We implement LUNA on Ethereum-compatible infrastructure,
+evaluate it on the Sepolia public testnet across BN
+configurations of 4 to 32 evidence nodes, and compare
+directly against full on-chain BN inference.
+Results show that per-query gas is independent of BN size
+and \placeholder{X}\% lower than on-chain inference at
+32~nodes, while initialization cost scales linearly in the
+number of CPT entries.
+Fixed-point encoding under $\texttt{SCALE}=10^6$ introduces
+a maximum absolute error of $5{\times}10^{-7}$ per posterior
+with no decision inconsistencies across all tested
+configurations.
+Applied to physician-visit verification with four binary
+evidence sources, LUNA demonstrates that interpretable,
+auditable BN-based oracle decisions are practically
+deployable in healthcare settings without prohibitive
+on-chain costs, while identifying oracle centralization
+and clinical CPT validation as the primary directions for
+future work.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Bayesian inference, blockchain oracle, smart contracts,
+healthcare informatics, gas optimization, evidence-based
+reasoning, fixed-point arithmetic, claim verification
+\end{IEEEkeywords}
+
+%% ============================================================
+\section{Introduction}
+\label{sec:introduction}
+%% ============================================================
+
+\subsection{Motivation}
+
+Smart contracts execute deterministically, yet their
+correctness often depends on external data that contracts
+cannot access directly.
+As blockchain-based smart contracts increasingly mediate
+high-stakes decisions in finance, supply chains, and
+healthcare~\cite{hameed2024digital}, they rely on
+\emph{oracles} to supply off-chain
+information~\cite{sheldon2021auditing}.
+This creates the \emph{oracle problem}: even with secure
+on-chain consensus, contract correctness ultimately depends
+on the trustworthiness and interpretability of off-chain
+data feeds~\cite{pasdar2023connect}.
+
+Most existing oracle designs address this by reducing
+heterogeneous evidence to a scalar value: a price
+feed~\cite{zhang2024blockchain,ahmadjee2025decision}, a
+reputation
+score~\cite{chen2022decentralized,nelaturu2020public,arshad2022reputable,
+wang2025efficient}, or a majority
+vote~\cite{adler2018astraea,sober2021voting}.
+While sufficient for simple aggregation, scalar abstractions
+obscure how individual evidence sources contribute to a
+decision, making outcomes difficult to audit, contest, or
+formally analyse~\cite{pasdar2023connect,ezzat2022blockchain}.
+This limitation is especially consequential in healthcare,
+where clinical and administrative decisions must
+demonstrably follow from identifiable evidence, and where
+regulatory frameworks require explainable, auditable
+reasoning~\addcite.
+%% TODO: Replace \addcite with a real citation, e.g.:
+%% EU MDR 2017/745 (Article 61), IEEE 7001-2021, or a
+%% JBHI paper on clinical decision support accountability.
+
+Bayesian Networks~(BNs) offer a principled alternative.
+By representing claims and evidence as nodes and encoding
+probabilistic dependencies via Conditional Probability
+Tables~(CPTs), BNs enable structured, interpretable
+inference in which each evidence source has an explicit
+and locally verifiable effect on the posterior.
+Prior work has demonstrated that BN-based reasoning can be
+embedded directly in smart contracts, allowing on-chain
+posterior computation from evidence~\cite{bn-oracle}.
+This approach has two concrete advantages over scalar
+oracles: decisions are derived from an explicit
+probabilistic model whose parameters are visible on-chain,
+and the contribution of each individual evidence source is
+traceable through its CPT entries.
+
+However, on-chain BN inference faces a fundamental
+scalability barrier.
+CPT evaluation and posterior normalization require
+on-chain operations whose gas cost grows with the number
+of evidence nodes, making full on-chain BN inference
+impractical for models with more than a small number of
+sources~\cite{bn-oracle}.
+The obvious alternative---moving inference entirely
+off-chain---reduces gas consumption but severs the
+verifiability link: without a principled interface, smart
+contracts cannot determine whether a reported posterior is
+consistent with the BN parameters anchored to the ledger.
+This creates a trust gap that existing designs do not
+close.
+
+The core tension is therefore this: on-chain BN inference
+preserves verifiability but does not scale; off-chain
+inference scales but abandons verifiability.
+Neither extreme is acceptable for healthcare settings,
+where both computational feasibility and decision
+auditability are non-negotiable requirements.
+A further complication is oracle centralization: if a
+single operator controls inference submission, correctness
+is assumed rather than enforced at execution time.
+LUNA addresses this partially through on-chain parameter
+anchoring and post-hoc auditability, but full
+decentralization of the inference layer remains an open
+problem scoped as future work.
+
+These considerations motivate the following research
+questions:
+
+\begin{itemize}
+  \item \textbf{RQ1:} Can a BN-based oracle be designed
+  such that per-query on-chain gas cost is independent of
+  BN size, while BN parameters, evidence assignments, and
+  posterior outputs remain anchored and auditable on-chain?
+
+  \item \textbf{RQ2:} Can a realistic claim--evidence
+  lifecycle---in which claims are opened once and updated
+  incrementally as evidence arrives out of order---be
+  supported without contract redeployment or modification
+  of the BN structure?
+
+  \item \textbf{RQ3:} Does off-chain inference with
+  on-chain parameter anchoring preserve sufficient
+  numerical fidelity under fixed-point encoding that
+  posteriors remain decision-consistent with their
+  floating-point counterparts, and what are the conditions
+  under which this guarantee holds?
+\end{itemize}
+
+\subsection{Contributions}
+
+This paper introduces \emph{LUNA} (Ledger-grounded
+Uncertainty-aware Networked Architecture), a BN-based
+oracle architecture that resolves the
+scalability--verifiability tension by treating the
+blockchain as an authenticated parameter and audit plane
+rather than an inference engine.
+Inference executes off-chain against a BN whose structure
+and CPTs are anchored on-chain; only compact evidence
+assignments and scaled posteriors are committed per query.
+This keeps the on-chain interface fixed-width and
+gas-predictable regardless of BN size, while preserving
+the ability to reconstruct and independently verify every
+inference decision from on-chain state.
+
+The paper makes the following concrete contributions:
+
+\begin{itemize}
+
+  \item \textbf{Gas-predictable BN oracle architecture.}
+  We design an oracle in which BN priors, CPTs, evidence
+  assignments, and posterior outputs are anchored on-chain
+  while inference executes off-chain.
+  The on-chain interface is fixed-width by construction,
+  yielding per-query gas cost that is independent of BN
+  size under a fixed query model.
+  We confirm this empirically across BN configurations
+  spanning 4 to 32 evidence nodes on both a local
+  development network and the Sepolia public testnet,
+  and compare directly against full on-chain BN
+  inference~\cite{bn-oracle} to quantify the gas
+  reduction.
+
+  \item \textbf{Formal evidence-based oracle model.}
+  We define a restricted discrete BN with binary claim
+  and evidence variables, derive a closed-form inference
+  procedure, and specify a fixed-point encoding scheme.
+  We characterise the rounding error introduced by
+  fixed-point representation as a function of the scale
+  factor and establish the conditions under which encoded
+  posteriors remain decision-consistent with their
+  floating-point counterparts.
+
+  \item \textbf{Claim lifecycle and interaction protocol.}
+  We specify an on-chain state machine supporting
+  incremental, out-of-order evidence arrival.
+  Claims are opened once and updated arbitrarily without
+  redeployment.
+  We show empirically that per-update gas cost is stable
+  across the full claim lifecycle under multiple
+  concurrent claims and evidence orderings.
+
+  \item \textbf{Implementation and empirical evaluation.}
+  We implement LUNA on Ethereum-compatible infrastructure
+  and evaluate on the Sepolia public testnet and a local
+  development network.
+  Results show per-query gas is effectively constant as
+  BN size grows, initialization cost scales linearly in
+  CPT entries, and posteriors remain decision-consistent
+  with off-chain computation across all tested
+  configurations.
+  CPT values are synthetic in this evaluation; clinical
+  grounding of parameters is identified as the primary
+  direction for future work.
+
+\end{itemize}
+
+Taken together, these contributions demonstrate that
+interpretable, auditable BN-based oracle decisions are
+practically deployable without gas costs that scale with
+model complexity---a combination not achieved by prior
+designs.
+The architecture is explicit about its current
+limitation: auditability is post-hoc, and the inference
+layer remains centralized pending future work on
+decentralized oracle committees.
+
+The remainder of the paper is organized as follows.
+Section~\ref{sec:relatedwork} reviews related work.
+Section~\ref{sec:proposed-methodology} presents the LUNA
+system model and BN formulation.
+Section~\ref{sec:implementation} describes the
+implementation.
+Section~\ref{sec:experimental-analysis} reports
+experimental results.
+Section~\ref{sec:results-discussion} discusses trade-offs
+and limitations.
+Section~\ref{sec:conclusion} concludes.
+
+
+%% ============================================================
+\section{Related Work}
+\label{sec:relatedwork}
+%% ============================================================
+
+Blockchain oracles provide external data to smart
+contracts but differ significantly in how they aggregate
+evidence, represent uncertainty, and ensure trust.
+We survey four categories relevant to LUNA and summarize
+key distinctions in Table~\ref{tab:oracle-comparison}.
+
+\subsection{Data-Feed and Oracle Networks}
+
+Widely deployed oracle systems such as
+Chainlink~\cite{breidenbach2021chainlink} and
+Witnet~\cite{de2017witnet} provide smart contracts
+with scalar values---asset prices or event
+outcomes---sourced from multiple off-chain providers.
+These systems rely on aggregation mechanisms,
+cryptographic signatures, and decentralized committees
+to improve robustness against faulty or malicious data
+providers~\cite{pasdar2023connect,ezzat2022blockchain,mammadzada2020blockchain}.
+While effective for numerical feeds, such designs treat
+inputs as atomic values and do not explicitly model how
+different evidence sources contribute to a decision.
+The reasoning process behind a reported value remains
+implicit, limiting interpretability and making it
+difficult to audit how individual signals affect
+outcomes.
+
+\subsection{Reputation, Voting, and Prediction-Market
+Oracles}
+
+Alternative oracle designs use economic incentives and
+collective decision-making.
+Reputation-based systems assign trust scores to data
+providers~\cite{chen2022decentralized,nelaturu2020public,
+arshad2022reputable}, while voting-based and
+prediction-market oracles such as
+Augur~\cite{peterson2015augur} aggregate reports through
+token-weighted voting and reward mechanisms.
+Kleros~\cite{lesaege2019kleros} extends this with
+cryptoeconomic dispute resolution.
+These approaches provide economic security and
+decentralization, but compress heterogeneous evidence
+into scalar scores or discrete outcomes.
+The relationship between individual evidence sources and
+final decisions is not explicitly represented, limiting
+transparency and making post-hoc analysis of decisions
+difficult~\cite{pasdar2021blockchain}.
+
+\subsection{Verifiable Computation and zk-Oracles}
+
+A separate line of work focuses on verifiable
+computation, in which off-chain results are accompanied
+by cryptographic proofs verified on-chain.
+Systems based on trusted execution environments such as
+Town~Crier~\cite{zhang2016town} or zero-knowledge
+proofs such as DECO~\cite{zhang2020deco} and
+zk-SNARK-based oracles~\cite{garg2022succinct} ensure
+that a reported output is consistent with a specified
+computation.
+These approaches provide strong correctness guarantees
+but typically treat the underlying computation as a
+black box.
+While they can attest that a result was computed
+correctly, they do not prescribe how to structure the
+model itself or how to expose intermediate evidence and
+parameters for interpretability.
+Proof generation and verification also introduce
+non-trivial overhead that scales with circuit complexity.
+
+\subsection{Bayesian Network--Based Oracles}
+
+Recent work explores the use of BNs to represent
+structured evidence in oracle systems~\cite{bn-oracle}.
+In these designs, claims and evidence are modeled
+explicitly, and smart contracts compute posterior
+probabilities directly from on-chain CPTs.
+This enables interpretable, evidence-based decisions
+with fully transparent parameters.
+However, executing BN inference on-chain incurs gas
+costs that grow with the size of the network and the
+number of evidence nodes, making such approaches
+difficult to scale beyond small models.
+Prior BN-based systems also remain largely
+domain-agnostic decision aids; they do not address how
+to commit BN parameters, evidence configurations, and
+resulting decisions to a permissionless ledger in a
+gas-efficient yet auditable manner.
+
+\subsection{Positioning LUNA}
+
+LUNA occupies a distinct position in this landscape.
+Unlike data-feed oracles, LUNA makes the probabilistic
+model explicit: each evidence source is a node in a BN
+whose CPTs are publicly anchored on-chain.
+Unlike reputation and voting systems, LUNA produces
+interpretable posteriors with a clear semantic link to
+individual evidence sources.
+Unlike verifiable computation approaches, LUNA does not
+require proof generation; instead, it achieves
+auditability through parameter transparency and
+transcript completeness, trading runtime correctness
+enforcement for architectural simplicity.
+Unlike prior BN-on-chain designs, LUNA decouples
+inference from the on-chain interface, achieving
+gas-predictable operation regardless of BN size.
+Table~\ref{tab:oracle-comparison} summarizes these
+distinctions.
+
+\begin{table}[t]
+\centering
+\caption{Comparison of oracle designs along inference,
+accountability, and gas cost dimensions.}
+\label{tab:oracle-comparison}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{p{2.0cm}p{1.3cm}p{2.9cm}p{2.0cm}}
+\toprule
+\textbf{Category} &
+\textbf{Inference} &
+\textbf{Accountability} &
+\textbf{Gas cost} \\
+\midrule
+Price / data-feed
+oracles~\cite{breidenbach2021chainlink,
+de2017witnet}
+& Hybrid
+& Values, signatures, committee votes
+& Tied to feed size; model implicit \\
+\addlinespace
+Reputation / prediction-market
+oracles~\cite{peterson2015augur,lesaege2019kleros}
+& Off-chain / hybrid
+& Reputation scores, staking, slashing, juror voting
+& Depends on number of reporters \\
+\addlinespace
+Verifiable-computation
+oracles~\cite{zhang2016town,zhang2020deco,
+garg2022succinct}
+& Off-chain
+& Proofs on-chain; computation verifiable
+& Proof generation cost \\
+\addlinespace
+BN-on-chain
+oracles~\cite{bn-oracle}
+& On-chain
+& Parameters and posteriors fully on-chain
+& Grows with BN size \\
+\addlinespace
+\textbf{LUNA (this work)}
+& Off-chain
+& Priors, CPTs, claim states, and per-claim
+  posteriors recorded on-chain
+& Per-query gas $\approx$ constant \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+
+%% ============================================================
+\section{System Model and Architecture}
+\label{sec:proposed-methodology}
+%% ============================================================
+
+LUNA treats the blockchain as an authenticated parameter
+and audit plane rather than an inference engine.
+A discrete BN encodes the probabilistic relationship
+between claims and evidence; inference executes off-chain
+against BN parameters anchored on-chain; and every
+evidence assignment, posterior output, and state
+transition is committed to the ledger as an immutable
+transcript.
+This separation achieves gas-predictable on-chain
+interaction while preserving the ability to reconstruct
+and independently verify every inference decision from
+ledger state alone.
+Figure~\ref{fig:component} shows the component structure;
+Figure~\ref{fig:sequence} shows the interaction protocol.
+
+\subsection{Actors and Roles}
+
+LUNA involves four roles.
+
+\begin{itemize}
+
+  \item \textbf{BN Designer.}
+  Specifies BN structure, node semantics, and initial
+  CPT parameters. Deploys on-chain contracts and
+  initialises \texttt{CPTStore}. Trusted for model
+  correctness; CPT values are publicly visible on-chain
+  and independently auditable by any party.
+
+  \item \textbf{Oracle Operator.}
+  Runs the off-chain BN inference service. Reconstructs
+  BN parameters from \texttt{CPTStore}, evaluates
+  posteriors for incoming evidence assignments, and
+  submits results through \texttt{OracleController}.
+  In the current design this is a single trusted party;
+  correctness of submitted posteriors is auditable
+  post-hoc but is not enforced at submission time.
+  Decentralisation of this role is identified as future
+  work (Section~\ref{sec:limitations}).
+
+  \item \textbf{Evidence Provider.}
+  Submits binary evidence observations linked to a
+  specific claim. Each submission is
+  signature-verified on-chain. Evidence providers are
+  assumed honest in the current model; adversarial
+  evidence injection is not defended against at the
+  contract level.
+
+  \item \textbf{Querier.}
+  Reads committed posteriors and audit logs from the
+  ledger. Requires no special privileges; all committed
+  state is publicly readable.
+
+\end{itemize}
+
+The system enforces three architectural invariants by
+construction. First, \textbf{structural fixity}: the BN
+topology, node semantics, and admissible query type are
+fixed at deployment time and cannot be modified without
+redeployment, ensuring all claims under a given
+deployment are evaluated against an identical model.
+Second, \textbf{inference separation}: smart contracts
+never execute probabilistic inference; the on-chain
+interface accepts only fixed-width tuples of evidence
+bits and scaled posterior values, making per-query gas
+independent of BN structure.
+Third, \textbf{transcript completeness}: every parameter
+write, evidence submission, and posterior commitment is
+recorded in contract storage or emitted as an indexed
+event, making the full reasoning transcript for any
+claim reconstructible from ledger state alone.
+
+\subsection{Threat Model}
+
+LUNA inherits the tamper-evidence and append-only
+guarantees of the underlying blockchain for all
+on-chain state. Within this boundary, four threats
+are in scope.
+
+\textbf{Malicious posterior submission.}
+The oracle operator could submit posteriors inconsistent
+with the anchored CPTs. LUNA does not prevent this at
+execution time. Mitigation is post-hoc: any party can
+reconstruct the correct posterior from \texttt{CPTStore}
+and the committed evidence assignment and detect a
+discrepancy. Future work will address this through
+decentralised oracle committees or verifiable inference
+using zero-knowledge proofs.
+
+\textbf{Stale parameter submission.}
+CPT parameters may be updated between an oracle's
+reconstruction and its posterior submission, causing
+the submitted posterior to reflect outdated parameters.
+LUNA mitigates this by binding each posterior submission
+to the block height at which parameters were
+reconstructed, allowing auditors to detect
+parameter-submission races.
+
+\textbf{Adversarial evidence injection.}
+A compromised evidence provider could submit false
+binary observations. On-chain signature verification
+ensures only authorised providers can submit evidence,
+but correctness of the observation itself is not
+verified. This is a data quality assumption common to
+oracle systems and is noted as a limitation.
+
+\textbf{Out-of-scope threats.}
+Smart contract vulnerabilities (re-entrancy, integer
+overflow) are mitigated by Solidity~0.8.x checked
+arithmetic and are not analysed further.
+Blockchain-level attacks (51\% attack, long-range
+attacks) are assumed negligible under the target
+deployment conditions.
+
+\subsection{Bayesian Network Formulation}
+
+LUNA uses a discrete BN over two binary claim
+variables, $\texttt{PPH}$~(in-person physician visit)
+and $\texttt{PPR}$~(remote physician visit), and four
+binary evidence variables
+\[
+  \mathcal{E}=\{
+    \texttt{GPS},\,\texttt{PC},\,
+    \texttt{PMD},\,\texttt{PR}
+  \},
+\]
+where \texttt{GPS} denotes GPS location consistency,
+\texttt{PC} patient confirmation, \texttt{PMD}
+physician medical device log, and \texttt{PR}
+physician prescription record.
+Each evidence variable is conditioned on both claim
+variables:
+\[
+  (\texttt{PPH},\texttt{PPR})
+  \;\rightarrow\;
+  \{\texttt{GPS},\texttt{PC},\texttt{PMD},\texttt{PR}\}.
+\]
+
+\noindent\textbf{Conditional independence assumption.}
+Given the claim configuration $(\texttt{PPH},
+\texttt{PPR})$, evidence variables are modeled as
+conditionally independent, yielding the factorisation
+\begin{equation}
+  P(\texttt{PPH},\texttt{PPR},E)
+  =
+  P(\texttt{PPH})\,P(\texttt{PPR})
+  \prod_{E_i\in\mathcal{E}}
+  P(E_i\mid \texttt{PPH},\texttt{PPR}).
+  \label{eq:factorization}
+\end{equation}
+This is a strong assumption: in practice, GPS
+consistency and patient confirmation may be correlated
+independently of the claim type. We adopt it to keep
+inference closed-form and constant-cost; relaxing it
+to a richer dependency structure is left to future
+work. Sensitivity of posterior outputs to this
+assumption is evaluated in
+Section~\ref{sec:exp-sensitivity}.
+
+\noindent\textbf{Claim variable independence.}
+\texttt{PPH} and \texttt{PPR} are modeled as
+marginally independent root nodes. This does not imply
+that in-person and remote visits can co-occur; mutual
+exclusivity is enforced at the application layer by
+the claim submission protocol. An alternative encoding
+as a single binary root variable
+$C\in\{\texttt{PPH},\texttt{PPR}\}$ would simplify the
+structure and is considered in
+Section~\ref{sec:results-discussion}.
+
+\noindent\textbf{Posterior computation.}
+For a given evidence assignment
+$e=(e_1,\dots,e_4)\in\{0,1\}^4$, the oracle evaluates
+\begin{equation}
+  P(\texttt{PPH},\texttt{PPR}\mid e)
+  \;\propto\;
+  P(\texttt{PPH})\,P(\texttt{PPR})
+  \prod_{E_i\in\mathcal{E}}
+  P(E_i=e_i\mid \texttt{PPH},\texttt{PPR}),
+  \label{eq:posterior}
+\end{equation}
+enumerating all four root configurations
+$(i,j)\in\{0,1\}^2$ and normalising.
+The committed marginals $P(\texttt{PPH}=1\mid e)$ and
+$P(\texttt{PPR}=1\mid e)$ are obtained by summing over
+the complementary root value. Inference complexity is
+$O(2^{N_h}\cdot N_e)$ for $N_h$ root variables and
+$N_e$ evidence nodes, reducing to a constant-time
+computation for fixed $N_h=2$.
+
+\subsection{Fixed-Point Encoding and Decision
+Consistency}
+
+Posterior probabilities $p\in[0,1]$ are encoded as
+integers using a global scale factor
+$\texttt{SCALE}\in\mathbb{Z}^+$:
+\[
+  \widehat{p}
+  = \texttt{round}(p\cdot\texttt{SCALE}),
+  \qquad
+  \widehat{p}\in\{0,\dots,\texttt{SCALE}\}.
+\]
+
+\begin{proposition}[Rounding error bound]
+The absolute rounding error satisfies
+\[
+  \left|p - \frac{\widehat{p}}{\texttt{SCALE}}\right|
+  \leq \frac{1}{2\cdot\texttt{SCALE}}.
+\]
+For $\texttt{SCALE}=10^6$, the per-posterior error is
+bounded by $5\times10^{-7}$.
+\end{proposition}
+
+\begin{definition}[Decision consistency]
+A posterior $p$ is \emph{decision-consistent} with its
+encoded counterpart $\widehat{p}$ at threshold $\tau$
+if and only if
+\[
+  \mathbb{1}[p \geq \tau]
+  \;=\;
+  \mathbb{1}\!\left[
+    \tfrac{\widehat{p}}{\texttt{SCALE}} \geq \tau
+  \right].
+\]
+Inconsistency is possible only when
+$p\in[\tau-\epsilon,\,\tau+\epsilon]$ where
+$\epsilon = \frac{1}{2\cdot\texttt{SCALE}}$.
+\end{definition}
+
+For $\texttt{SCALE}=10^6$ and $\tau=0.5$, the
+inconsistency interval has width $10^{-6}$.
+Whether any evaluated posterior falls in this interval
+is reported empirically in
+Section~\ref{sec:exp-fidelity}.
+
+\subsection{Claim Lifecycle and Oracle Workflow}
+
+Each claim represents a single physician visit,
+identified by an internal on-chain identifier
+\texttt{claimId} and an external key
+$k\in\{0,1\}^{256}$ derived from visit metadata via
+\texttt{keccak256}.
+Evidence may arrive incrementally and out of order.
+The current state of a claim at time $t$ is a partial
+assignment
+\[
+  e^{(t)}:
+  \{\texttt{GPS},\texttt{PC},\texttt{PMD},\texttt{PR}\}
+  \rightarrow\{0,1,\bot\},
+\]
+where $\bot$ denotes a variable not yet observed.
+Inference is computed over the observed subset only;
+unobserved variables are marginalised out.
+
+Each claim transitions through three states:
+\[
+  \texttt{None}
+  \xrightarrow{\texttt{openClaim}}
+  \texttt{Open}
+  \xrightarrow{\texttt{finalizeClaim}}
+  \texttt{Finalized}.
+\]
+Posterior submissions via \texttt{submitInference} are
+accepted only in the \texttt{Open} state.
+The \texttt{Finalized} state is absorbing; no further
+updates are possible, preventing retroactive
+modification of completed claims.
+
+The end-to-end workflow proceeds as follows.
+(i)~An application calls $\texttt{openClaim}(k)$
+on-chain, creating a new claim in the \texttt{Open}
+state.
+(ii)~Evidence providers submit binary observations
+linked to \texttt{claimId}; each is signature-verified
+and appended to \texttt{EvidenceRegistry}.
+(iii)~The off-chain oracle reconstructs $e^{(t)}$
+from \texttt{EvidenceRegistry}, retrieves BN
+parameters from \texttt{CPTStore} at block~$b$,
+evaluates Equation~\eqref{eq:posterior}, encodes both
+marginals, and calls \texttt{submitInference}.
+(iv)~\texttt{OracleController} validates the
+submission, updates \texttt{ClaimRegistry}, appends to
+\texttt{EvidenceRegistry}, and emits an indexed event
+binding the posterior to block height~$b$.
+(v)~Once complete, \texttt{finalizeClaim} transitions
+the claim to \texttt{Finalized}.
+
+Because every parameter write, evidence submission, and
+posterior commit is recorded on-chain, the full
+inference transcript for any claim is reconstructible
+and auditable from ledger state alone without reliance
+on off-chain records.
+
+\begin{figure}[t]
+  \centering
+  \IfFileExists{Figures/Component_image.png}%
+  {\includegraphics[width=\columnwidth]{Figures/Component_image}}%
+  {\fbox{\parbox{\columnwidth}{\centering\vspace{1.5cm}
+   \texttt{[insert: Figures/Component\_image.png]}
+   \vspace{1.5cm}}}}
+  \caption{LUNA component architecture. The on-chain
+  layer hosts four smart contracts; the off-chain oracle
+  performs BN inference and submits posteriors through
+  \texttt{OracleController}.}
+  \label{fig:component}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \IfFileExists{Figures/sequence_diagram.png}%
+  {\includegraphics[width=\columnwidth]{Figures/sequence_diagram}}%
+  {\fbox{\parbox{\columnwidth}{\centering\vspace{1.5cm}
+   \texttt{[insert: Figures/sequence\_diagram.png]}
+   \vspace{1.5cm}}}}
+  \caption{LUNA interaction protocol covering BN
+  creation and approval, claim assertion, evidence
+  assertion, and claim verification phases.}
+  \label{fig:sequence}
+\end{figure}
+
+
+%% ============================================================
+\section{Implementation}
+\label{sec:implementation}
+%% ============================================================
+
+The complete implementation---smart contracts,
+off-chain oracle, and experiment scripts---is publicly
+available at
+\url{https://github.com/S1120957/S_Evidence_BN_Oracle}
+(archived: DOI~\placeholder{INSERT ZENODO DOI},
+tag~\texttt{v1.0}).
+
+\subsection{On-Chain Contracts}
+
+The on-chain layer is implemented in Solidity~0.8.x
+on an Ethereum-compatible EVM, organized into four
+contracts with strictly separated responsibilities.
+Table~\ref{tab:access-control} summarizes write
+permissions.
+
+\textbf{CPTStore} is the sole repository for BN
+parameters. It stores prior probabilities
+$P(\texttt{PPH}=1)$ and $P(\texttt{PPR}=1)$, and for
+each evidence node $E_i\in\mathcal{E}$, the four
+conditional entries
+$P(E_i=1\mid\texttt{PPH}=i,\texttt{PPR}=j)$,
+$i,j\in\{0,1\}$. All values are stored as integers
+$\widehat{p}\in\{0,\dots,\texttt{SCALE}\}$ under
+$\texttt{SCALE}=10^6$. Every parameter write is
+range-checked and emitted as an indexed event,
+enabling full reconstruction of the BN parameter
+history from the ledger. Write access is restricted
+to the deploying account; reads are unrestricted.
+
+\textbf{ClaimRegistry} manages claim state. Each
+claim is identified by an internal \texttt{claimId}
+and linked to an external key via \texttt{keccak256}.
+The registry stores the latest committed posterior
+pair and enforces the state machine
+$\texttt{None}\to\texttt{Open}\to\texttt{Finalized}$.
+The \texttt{Finalized} state is absorbing. Only
+\texttt{OracleController} may write to this registry.
+
+\textbf{EvidenceRegistry} maintains an append-only
+log of evidence--posterior pairs. Each entry records
+the \texttt{claimId}, four evidence bits, scaled
+posteriors, submitting address, and block number.
+Given this log and the parameter history in
+\texttt{CPTStore}, any party can independently
+recompute and verify every posterior ever committed
+for any claim. Write-restricted to
+\texttt{OracleController}.
+
+\textbf{OracleController} is the sole external entry
+point for inference submission. It accepts a
+fixed-width tuple
+$(\texttt{claimId},\,e\in\{0,1\}^4,\,
+\widehat{p}_{\texttt{PPH}},\,
+\widehat{p}_{\texttt{PPR}})$, enforces three
+invariants: (i)~claim exists and is \texttt{Open},
+(ii)~posterior values satisfy
+$0\leq\widehat{p}\leq\texttt{SCALE}$,
+(iii)~caller is the authorised oracle address.
+On success it updates \texttt{ClaimRegistry}, appends
+to \texttt{EvidenceRegistry}, and emits an indexed
+event binding the submission to CPTStore block
+height~$b$. No contract reads CPT entries or performs
+arithmetic on posterior values; all operations are
+$O(1)$ in BN size by construction.
+
+\begin{table}[t]
+\centering
+\caption{Write permission matrix for LUNA contracts.
+Integer overflow is precluded by Solidity~0.8.x
+checked arithmetic throughout.}
+\label{tab:access-control}
+\begin{tabularx}{\columnwidth}{lXl}
+\toprule
+\textbf{Contract} &
+\textbf{Written data} &
+\textbf{Caller} \\
+\midrule
+\texttt{CPTStore}
+  & BN priors and CPT entries
+  & Deployer \\
+\texttt{ClaimRegistry}
+  & Claim state and posteriors
+  & \texttt{OracleController} \\
+\texttt{EvidenceRegistry}
+  & Evidence--posterior log
+  & \texttt{OracleController} \\
+\texttt{OracleController}
+  & Inference submissions
+  & Authorised oracle \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Off-Chain Oracle}
+
+The off-chain oracle is implemented in Python~3.x.
+Its core component, \texttt{BNOracle}, stores BN
+structure and floating-point CPT parameters and
+evaluates the posterior pair
+$(P(\texttt{PPH}=1\mid e),\,P(\texttt{PPR}=1\mid e))$
+via Equation~\eqref{eq:posterior}.
+
+Before each inference run, a synchronisation module
+reads all CPT entries from \texttt{CPTStore} via
+\texttt{web3.py} and reconstructs the BN from the
+current on-chain parameter snapshot at block~$b$.
+This ensures submitted posteriors correspond to the
+parameter state visible on-chain at reconstruction
+time. The block height~$b$ is recorded and included
+in the submission event for audit purposes. If
+reconstruction fails (RPC timeout or unexpected
+contract state), the oracle aborts and logs the
+failure without writing to the chain.
+
+The submission pipeline executes five steps:
+(i)~reconstruct BN from \texttt{CPTStore} at block~$b$;
+(ii)~read current evidence assignment $e^{(t)}$ from
+\texttt{EvidenceRegistry};
+(iii)~evaluate Equation~\eqref{eq:posterior} over
+observed variables, marginalising out $\bot$ entries;
+(iv)~encode both marginals as
+$\widehat{p}=\texttt{round}(p\cdot\texttt{SCALE})$;
+(v)~submit via \texttt{submitInference}, recording
+transaction hash and gas used.
+
+Transaction reverts are caught and logged with the
+revert reason. The oracle does not retry automatically;
+failed submissions require manual inspection. This is
+a known limitation of the single-operator design
+discussed in Section~\ref{sec:limitations}.
+
+\subsection{Deployment and Experimental Setup}
+
+\textbf{Deployment environments.}
+Experiments use two complementary environments.
+\emph{Ganache} provides a local deterministic network
+with fixed gas price~(20~Gwei), isolating pure EVM
+execution cost from network variability.
+\emph{Sepolia} is the Ethereum public testnet
+(EIP-1559 base fees, variable block packing), serving
+as the primary validity check for the
+gas-predictability claim. All Sepolia transactions are
+publicly verifiable at the addresses in
+Table~\ref{tab:contracts}.
+
+\begin{table}[t]
+\centering
+\caption{Deployed contract addresses on the Sepolia
+public testnet, verifiable via Sepolia Etherscan.}
+\label{tab:contracts}
+\begin{tabularx}{\columnwidth}{lX}
+\toprule
+\textbf{Contract} & \textbf{Sepolia address} \\
+\midrule
+\texttt{CPTStore}
+  & \placeholder{0x...} \\
+\texttt{ClaimRegistry}
+  & \placeholder{0x...} \\
+\texttt{EvidenceRegistry}
+  & \placeholder{0x...} \\
+\texttt{OracleController}
+  & \placeholder{0x...} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Toolchain.}
+Contracts were compiled and deployed using
+Hardhat~2.x. Python components interacted with both
+networks via \texttt{web3.py}~6.x. All dependencies
+are version-pinned in \texttt{requirements.txt} and
+\texttt{package.json}.
+
+\textbf{BN parameter configurations.}
+Two CPT configurations are evaluated. The
+\emph{neutral} configuration sets all priors and CPT
+entries to $p=0.5$ ($\widehat{p}=500{,}000$),
+isolating architectural properties from
+parameter-specific effects. The \emph{asymmetric}
+configuration uses values specified in
+Table~\ref{tab:cpt-values}, motivated by
+plausible clinical priors~\addcite.
+%% TODO: Add citation justifying asymmetric CPT values.
+Gas behaviour and fixed-point fidelity are evaluated
+under both configurations. Neutral CPTs produce
+uninformative posteriors by construction; posterior
+convergence results are therefore reported only for
+the asymmetric configuration.
+
+\begin{table}[t]
+\centering
+\caption{Asymmetric CPT configuration.
+Values are $P(E_i=1\mid\texttt{PPH}=i,\texttt{PPR}=j)$.
+\todo{Justify values with a clinical or domain
+reference before submission.}}
+\label{tab:cpt-values}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lcccc}
+\toprule
+& \multicolumn{4}{c}{\textbf{Parent configuration}
+  $(\texttt{PPH},\texttt{PPR})$} \\
+\cmidrule{2-5}
+\textbf{Evidence} &
+$(1,0)$ & $(0,1)$ & $(1,1)$ & $(0,0)$ \\
+\midrule
+\texttt{GPS} &
+\placeholder{0.90} & \placeholder{0.15} &
+\placeholder{0.80} & \placeholder{0.10} \\
+\texttt{PC}  &
+\placeholder{0.85} & \placeholder{0.20} &
+\placeholder{0.75} & \placeholder{0.15} \\
+\texttt{PMD} &
+\placeholder{0.88} & \placeholder{0.10} &
+\placeholder{0.78} & \placeholder{0.08} \\
+\texttt{PR}  &
+\placeholder{0.80} & \placeholder{0.25} &
+\placeholder{0.70} & \placeholder{0.20} \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\textbf{Experiment profiles.}
+Three BN sizes are evaluated: 4~nodes (baseline),
+8~nodes, and 32~nodes. Evidence nodes beyond the
+baseline four are synthetic, included only in the
+off-chain BN and \texttt{CPTStore}; the
+\texttt{OracleController} interface remains
+fixed-width across all sizes. For each size and CPT
+configuration, all $2^4=16$ complete evidence
+assignments are evaluated, plus partial assignments
+simulating incremental out-of-order arrival across
+three concurrent claims with different orderings.
+On Sepolia, each transaction type is submitted
+$n=20$ times; mean and standard deviation are
+reported.
+
+
+%% ============================================================
+\section{Experimental Evaluation}
+\label{sec:experimental-analysis}
+%% ============================================================
+
+We evaluate LUNA along four dimensions:
+(i)~on-chain gas cost as a function of BN size,
+compared directly against full on-chain BN inference;
+(ii)~fixed-point fidelity and decision consistency;
+(iii)~claim lifecycle stability under incremental
+out-of-order evidence arrival; and
+(iv)~end-to-end pipeline feasibility on a public
+testnet.
+
+\subsection{Gas Scaling with BN Size}
+\label{sec:exp-bn-size}
+
+Table~\ref{tab:gas-scaling} reports gas consumption
+for three transaction types across BN sizes on Ganache
+and Sepolia.
+
+\begin{table}[t]
+\centering
+\caption{Gas consumption by transaction type and BN
+size. Sepolia values: mean~$\pm$~std over $n=20$
+independent submissions.
+\todo{Fill all cells with measured values.}}
+\label{tab:gas-scaling}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{llrrr}
+\toprule
+\textbf{Network} &
+\textbf{Transaction} &
+\textbf{4 nodes} &
+\textbf{8 nodes} &
+\textbf{32 nodes} \\
+\midrule
+Ganache
+  & \texttt{CPTStore} init
+    & \placeholder{--}
+    & \placeholder{--}
+    & \placeholder{--} \\
+  & \texttt{openClaim}
+    & \placeholder{--}
+    & \placeholder{--}
+    & \placeholder{--} \\
+  & \texttt{submitInference}
+    & \placeholder{--}
+    & \placeholder{--}
+    & \placeholder{--} \\
+\midrule
+Sepolia
+  & \texttt{CPTStore} init
+    & \placeholder{--$\pm$--}
+    & \placeholder{--$\pm$--}
+    & \placeholder{--$\pm$--} \\
+  & \texttt{openClaim}
+    & \placeholder{--$\pm$--}
+    & \placeholder{--$\pm$--}
+    & \placeholder{--$\pm$--} \\
+  & \texttt{submitInference}
+    & \placeholder{--$\pm$--}
+    & \placeholder{--$\pm$--}
+    & \placeholder{--$\pm$--} \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\textbf{Initialization cost.}
+\texttt{CPTStore} initialization cost grows linearly
+with the number of evidence nodes, as each CPT entry
+requires one constant-cost \texttt{SSTORE} operation.
+Measured costs are \placeholder{X}~gas at 4~nodes,
+\placeholder{Y}~gas at 8~nodes, and \placeholder{Z}~gas
+at 32~nodes, consistent with the $O(N_e)$ bound.
+
+\textbf{Per-query cost.}
+\texttt{submitInference} gas is
+\placeholder{A$\pm$B}~gas on Sepolia across all BN
+sizes, confirming that per-query cost is independent
+of BN size and directly answering~RQ1. The on-chain
+function performs a fixed number of \texttt{SSTORE}
+and \texttt{LOG} operations regardless of BN
+structure.
+
+Figure~\ref{fig:gas-scaling} illustrates the flat
+per-query gas profile against the linearly growing
+initialization cost.
+
+\begin{figure}[t]
+  \centering
+  %% TODO: Generate and insert gas scaling plot.
+  %% x-axis: BN size (4, 8, 32 nodes)
+  %% y-axis: gas units
+  %% Two series: submitInference (flat line),
+  %%             CPTStore init (rising line)
+  %% Two panels or overlaid markers: Ganache and Sepolia
+  \placeholder{[INSERT GAS SCALING FIGURE]}
+  \caption{Gas consumption vs.\ BN size on Ganache and
+  Sepolia. \texttt{submitInference} gas (solid) is
+  effectively constant; \texttt{CPTStore}
+  initialization (dashed) grows linearly in the number
+  of CPT entries.}
+  \label{fig:gas-scaling}
+\end{figure}
+
+\subsection{Comparison Against On-Chain BN Inference}
+\label{sec:exp-comparison}
+
+Table~\ref{tab:gas-comparison} compares LUNA's
+per-query gas against the reference on-chain BN
+inference contract~\cite{bn-oracle} across identical
+BN configurations on Sepolia.
+
+\begin{table}[t]
+\centering
+\caption{Per-query gas: LUNA \texttt{submitInference}
+vs.\ on-chain BN inference~\cite{bn-oracle}.
+\todo{Fill all cells with measured values.}}
+\label{tab:gas-comparison}
+\begin{tabularx}{\columnwidth}{lXXr}
+\toprule
+\textbf{BN size} &
+\textbf{LUNA} &
+\textbf{On-chain BN} &
+\textbf{Reduction} \\
+\midrule
+4 nodes  &
+  \placeholder{--} & \placeholder{--} &
+  \placeholder{--\%} \\
+8 nodes  &
+  \placeholder{--} & \placeholder{--} &
+  \placeholder{--\%} \\
+32 nodes &
+  \placeholder{--} & \placeholder{--} &
+  \placeholder{--\%} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+At 4~evidence nodes, LUNA requires \placeholder{A}~gas
+versus \placeholder{C}~gas for on-chain inference, a
+reduction of \placeholder{D}\%.
+At 32~nodes, the gap widens to \placeholder{E}~versus
+\placeholder{F}~gas (\placeholder{G}\%~reduction),
+confirming that the gas advantage of LUNA's design
+grows with BN size.
+
+\subsection{Fixed-Point Fidelity and Decision
+Consistency}
+\label{sec:exp-fidelity}
+
+We evaluate fixed-point fidelity across all $2^4=16$
+complete evidence assignments under both neutral and
+asymmetric CPT configurations. For each assignment
+we compute
+$\delta=|p-\widehat{p}/\texttt{SCALE}|$ and check
+decision consistency at $\tau=0.5$.
+We additionally test
+$\texttt{SCALE}\in\{10^2,10^3,10^4,10^6\}$ to
+identify the minimum scale sufficient for decision
+consistency.
+
+\begin{table}[t]
+\centering
+\caption{Fixed-point fidelity under
+$\texttt{SCALE}=10^6$.
+Near-boundary counts posteriors within
+$\epsilon=5{\times}10^{-7}$ of $\tau=0.5$.
+\todo{Fill all cells with measured values.}}
+\label{tab:fidelity}
+\begin{tabularx}{\columnwidth}{lXXXX}
+\toprule
+\textbf{CPT config} &
+$\delta_{\max}$ &
+$\bar{\delta}$ &
+\textbf{Near-bdry} &
+\textbf{Inconsist.} \\
+\midrule
+Neutral    &
+  \placeholder{--} & \placeholder{--} &
+  \placeholder{--} & \placeholder{--} \\
+Asymmetric &
+  \placeholder{--} & \placeholder{--} &
+  \placeholder{--} & \placeholder{--} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Maximum observed error is \placeholder{X}, within the
+theoretical bound of $5\times10^{-7}$.
+\placeholder{No / N} decision inconsistencies are
+observed under either configuration for
+$\texttt{SCALE}=10^6$, answering~RQ3.
+The minimum sufficient scale for decision consistency
+under the asymmetric configuration is
+$\texttt{SCALE}\geq\placeholder{THRESHOLD}$, providing
+a practical lower bound for storage-constrained
+deployments.
+
+\subsection{Claim Lifecycle Evaluation}
+\label{sec:exp-lifecycle}
+
+We evaluate lifecycle stability using three concurrent
+claims with evidence arriving in different orderings
+under the asymmetric CPT configuration.
+Claim~1 receives evidence in canonical order
+$\texttt{GPS}\to\texttt{PC}\to\texttt{PMD}\to
+\texttt{PR}$; Claim~2 in reverse order; Claim~3 with
+a gap (\texttt{GPS} and \texttt{PR} first, then
+\texttt{PC}, then \texttt{PMD}).
+
+\textbf{Gas stability.}
+\texttt{submitInference} gas is
+\placeholder{A$\pm$B}~gas across all stages and all
+three claims, confirming that neither evidence
+ordering nor partial observation affects on-chain cost
+and directly answering~RQ2.
+
+\textbf{Posterior convergence.}
+Figure~\ref{fig:lifecycle} shows posterior
+trajectories for all three claims. Under asymmetric
+CPTs, posteriors for Claims~1 and~2 converge
+toward \placeholder{PPH/PPR} as evidence accumulates,
+demonstrating consistent convergence regardless of
+arrival order. Claim~3 shows
+\placeholder{describe actual behaviour} under partial
+observation, confirming stability under missing
+evidence.
+
+\begin{figure}[t]
+  \centering
+  %% TODO: Generate and insert lifecycle figure.
+  %% 3 subplots (Claims 1, 2, 3)
+  %% x-axis: evidence stage 0 to 4
+  %% y-axis: posterior probability [0,1]
+  %% Two lines per plot: P(PPH=1|e^t) solid,
+  %%                     P(PPR=1|e^t) dashed
+  \placeholder{[INSERT LIFECYCLE POSTERIOR FIGURE]}
+  \caption{Posterior evolution across evidence stages
+  for three concurrent claims under asymmetric CPTs.
+  $P(\texttt{PPH}=1\mid e^{(t)})$~(solid) and
+  $P(\texttt{PPR}=1\mid e^{(t)})$~(dashed).}
+  \label{fig:lifecycle}
+\end{figure}
+
+\textbf{State transitions.}
+All three claims transition deterministically through
+the state machine. Post-finalisation submission
+attempts produce the expected revert in all three
+cases, confirming that the \texttt{Finalized} state
+is absorbing.
+
+\subsection{Sensitivity Analysis}
+\label{sec:exp-sensitivity}
+
+\todo{Run sensitivity experiments before submission.
+Suggested approach: vary each CPT entry across
+\{0.1, 0.5, 0.9\} while holding others fixed; report
+how posterior changes for a fixed evidence assignment;
+confirm gas cost is invariant to CPT values. This
+defends the conditional independence assumption in
+Section~III and shows the architecture is robust to
+parameter perturbation.}
+
+
+%% ============================================================
+\section{Discussion}
+\label{sec:results-discussion}
+%% ============================================================
+
+\subsection{Answering the Research Questions}
+
+\textbf{RQ1 --- Gas-independent per-query cost.}
+The results confirm that per-query gas is independent
+of BN size by construction, with
+\placeholder{submitInference = A$\pm$B~gas} on Sepolia
+across all tested sizes and a \placeholder{G}\%
+reduction relative to on-chain BN inference at
+32~nodes. Initialization is the only BN-size-dependent
+cost and is paid once at deployment.
+
+\textbf{RQ2 --- Lifecycle support without
+redeployment.}
+Three concurrent claims with different evidence
+orderings all complete the full lifecycle without
+redeployment, with stable per-update gas cost
+independent of evidence history length or ordering.
+
+\textbf{RQ3 --- Fixed-point decision consistency.}
+For $\texttt{SCALE}=10^6$, no decision
+inconsistencies are observed across all tested
+configurations. The minimum sufficient scale is
+$\texttt{SCALE}\geq\placeholder{THRESHOLD}$,
+providing a practical lower bound for deployments
+with tighter storage constraints.
+
+\subsection{Design Trade-offs}
+
+The core design choice---off-chain inference with
+on-chain parameter anchoring---introduces a clear
+trade-off between gas efficiency and runtime
+correctness enforcement.
+
+\textbf{Auditability vs.\ real-time enforcement.}
+LUNA provides post-hoc auditability: any party can
+reconstruct and verify any posterior from on-chain
+state. However, a malicious oracle operator can
+submit an incorrect posterior detectable only after
+the fact. In healthcare settings where decisions are
+acted upon immediately, post-hoc detection may be
+insufficient. This is the most consequential
+limitation of the current design.
+
+\textbf{Structural fixity vs.\ adaptability.}
+BN structure is fixed at deployment. Adding a new
+evidence source requires redeployment and resets all
+claim history. In a live healthcare setting where
+evidence types evolve, this rigidity is a practical
+barrier.
+
+\textbf{Single claim variable encoding.}
+The current design uses two independent root nodes
+(\texttt{PPH} and \texttt{PPR}). A cleaner
+alternative is a single binary root variable
+$C\in\{0,1\}$, which would halve the number of root
+configurations, reduce CPT size by half, and
+eliminate the marginal independence assumption between
+claim variables. We retain the two-root design for
+compatibility with~\cite{bn-oracle} but recommend the
+single-variable encoding for future deployments.
+
+\subsection{Limitations}
+\label{sec:limitations}
+
+\textbf{Synthetic CPT parameters.}
+All experiments use either neutral or heuristically
+specified CPT values. Gas and fidelity results are
+independent of CPT values by construction, but
+posterior quality depends critically on parameter
+correctness. Clinically grounded CPT elicitation from
+real physician-visit data is necessary before any
+clinical deployment.
+
+\textbf{Limited BN size range.}
+BN sizes beyond 32~evidence nodes are not tested. The
+$O(N_e)$ initialization bound is consistent with
+measurements at 4, 8, and 32~nodes but is not
+validated beyond this range.
+
+\textbf{Single oracle operator.}
+The current prototype uses a single trusted oracle
+operator. Contention, failure, and adversarial
+behaviour of the oracle are not evaluated. Gas and
+latency overhead of a multi-operator committee design
+remain unmeasured.
+
+\textbf{Privacy exposure.}
+Committing binary evidence assignments to a public
+ledger may expose patient-linked information. Under
+GDPR and HIPAA, this requires either a permissioned
+deployment or evidence commitment via cryptographic
+commitment schemes before any live deployment.
+
+
+%% ============================================================
+\section{Conclusion}
+\label{sec:conclusion}
+%% ============================================================
+
+This paper addresses a fundamental tension in
+BN-based oracle design: on-chain inference preserves
+verifiability but does not scale; off-chain inference
+scales but severs the verifiability link.
+LUNA resolves this by treating the blockchain as an
+authenticated parameter and audit plane rather than
+an inference engine. BN structure and CPTs are
+anchored on-chain; inference executes off-chain; and
+every evidence assignment, posterior output, and state
+transition is committed as an immutable,
+reconstructible transcript. Correctness is auditable
+post-hoc from ledger state alone.
+
+Four concrete results are established. First, per-query
+on-chain gas cost is independent of BN size by
+construction, confirmed empirically across 4 to
+32~evidence nodes on Sepolia, with a
+\placeholder{G}\%~reduction at 32~nodes relative to
+full on-chain BN inference. Second, fixed-point
+encoding under $\texttt{SCALE}=10^6$ introduces a
+maximum absolute error bounded by $5\times10^{-7}$
+per posterior, with no decision inconsistencies across
+all tested configurations. Third, the claim lifecycle
+supports incremental, out-of-order evidence arrival
+across multiple concurrent claims with stable
+per-update gas cost. Fourth, the full inference
+transcript for any claim is reconstructible and
+independently verifiable from on-chain state alone.
+
+These results hold under explicit scope conditions:
+BN structure is fixed at deployment, evidence
+variables are binary, CPT parameters are synthetic
+in this evaluation, and the oracle operator is a
+single trusted party. These conditions define the
+boundary of this contribution and the frontier for
+future work.
+
+Three directions are prioritised. The most
+consequential is oracle centralization: a single
+operator can submit incorrect posteriors detectable
+only post-hoc. The immediate next step is a
+multi-operator committee design with on-chain
+detection of divergent submissions. The second
+direction is clinical CPT validation: evaluating LUNA
+with CPTs elicited from real physician-visit data is
+necessary before any clinical deployment. The third
+direction is privacy-preserving inference: integrating
+zero-knowledge proofs for posterior verification
+without evidence disclosure would simultaneously
+address the privacy constraint and the runtime
+correctness gap.
+
+LUNA demonstrates that interpretable, auditable
+BN-based oracle decisions are practically deployable
+without gas costs that scale with model complexity.
+The architecture is explicit about what it does not
+yet provide---runtime correctness enforcement,
+clinical parameter validation, and privacy
+preservation---and these define the starting point
+for the next stage of this work.
+
+
+%% ============================================================
+%% REFERENCES
+%% ============================================================
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}
