@@ -1,0 +1,34 @@
+# Secrets - NEVER commit
+.env
+*.key
+*_secret*
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+package-lock.json
+
+# Truffle/build artifacts
+deployment/build/
+build/
+
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.synctex.gz
+*.toc
+*.fls
+*.fdb_latexmk
+
+# OS
+.DS_Store
+Thumbs.db
