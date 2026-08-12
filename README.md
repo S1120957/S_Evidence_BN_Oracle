@@ -1,4 +1,4 @@
-﻿# SELENE
+# SELENE
 
 Definitive SELENE Path A implementation and experimental artifacts.
 
@@ -7,8 +7,6 @@ Definitive SELENE Path A implementation and experimental artifacts.
 - `contracts/` — definitive Path A Solidity contracts
 - `scripts/` — Path A inference and experiment scripts
 - `results/RESULTS.md` — final empirical results
-- `paper/main.tex` — current reconciled manuscript
-- `paper/Figures/` — manuscript figures
 
 ## Definitive Sepolia deployment
 
