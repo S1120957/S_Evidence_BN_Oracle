@@ -1,8 +1,5 @@
-﻿# Superseded Pre-Path-A Results
+﻿# Archived Results
 
-Historical pre-Path-A binary-contract results are retained for provenance only.
-They are not the empirical basis of the current manuscript.
-
-The complete old repository state is preserved at Git tag:
-
-`v0.1-luna-binary-baseline`
+Superseded pre-Path-A results from the binary-contract deployment
+(bnInstanceId 0x969012be…, block ~11,033,004). Retained for provenance.
+Not used in the manuscript.
