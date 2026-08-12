@@ -1,4 +1,4 @@
-"""
+﻿"""
 boundary_stress.py  --  RQ3 evidence (Path A)
 ==============================================
 RQ3 asks not only *whether* fixed-point encoding preserves decision
@@ -255,7 +255,7 @@ def run_part_b(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         enc = encode(p, DEFAULT_SCALE)
 
         cid = int(claim_reg.functions.nextClaimId().call())
-        key = Web3.keccak(text=f"LUNA_BOUNDARY_{run_id}_{i}")
+        key = Web3.keccak(text=f"SELENE_BOUNDARY_{run_id}_{i}")
         send(oracle_ctrl.functions.openClaim(key))
 
         snap = cpt_store.functions.getCPTSnapshot().call()
@@ -328,3 +328,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

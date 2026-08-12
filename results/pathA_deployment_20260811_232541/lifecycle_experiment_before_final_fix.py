@@ -1,4 +1,4 @@
-"""
+﻿"""
 lifecycle_experiment.py  --  RQ2 evidence (Path A)
 ===================================================
 Measures the claim lifecycle on Sepolia with REAL staged, partial,
@@ -173,7 +173,7 @@ def main() -> None:
 
         # ---- open claim -------------------------------------------------
         claim_id = int(claim_reg.functions.nextClaimId().call())
-        key = Web3.keccak(text=f"LUNA_LIFECYCLE_{RUN_ID}_{claim_label}")
+        key = Web3.keccak(text=f"SELENE_LIFECYCLE_{RUN_ID}_{claim_label}")
         r = send_tx(w3, oracle_ctrl.functions.openClaim(key),
                     sender, PRIVATE_KEY)
         open_gas, open_block = int(r.gasUsed), int(r.blockNumber)
@@ -347,3 +347,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

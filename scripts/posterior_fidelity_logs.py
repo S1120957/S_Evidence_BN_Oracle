@@ -1,5 +1,5 @@
-"""
-posterior_fidelity_logs.py — PROVEN-METHOD VERSION
+﻿"""
+posterior_fidelity_logs.py â€” PROVEN-METHOD VERSION
 ---------------------------------------------------
 Uses the EXACT claimId method that sepolia_gas_logs.py proved works
 20/20 times in the same deployment:
@@ -132,14 +132,14 @@ def main():
         evidence = {"GPS": gps, "PC": pc, "PMD": pmd, "PR": pr}
 
         # ----------------------------------------------------------
-        # 1. Read claimId BEFORE openClaim — the proven method.
+        # 1. Read claimId BEFORE openClaim â€” the proven method.
         #    Sequential single-sender: this id is exactly what
         #    openClaim will allocate (gas_logs.py: 20/20 success).
         # ----------------------------------------------------------
         claim_id = int(claim_reg.functions.nextClaimId().call())
 
         external_key = Web3.keccak(
-            text=f"LUNA_FID_{RUN_ID}_{PROFILE_NAME}_{gps}{pc}{pmd}{pr}"
+            text=f"SELENE_FID_{RUN_ID}_{PROFILE_NAME}_{gps}{pc}{pmd}{pr}"
         )
         open_receipt = send_tx(
             w3,
@@ -197,7 +197,7 @@ def main():
         if onchain_pph_enc == 0 and pph_enc != 0:
             raise RuntimeError(
                 f"posteriorPPH=0 on claimId={claim_id}. Expected {pph_enc}. "
-                f"This should not happen with the proven method — "
+                f"This should not happen with the proven method â€” "
                 f"check Etherscan."
             )
 
@@ -260,3 +260,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
