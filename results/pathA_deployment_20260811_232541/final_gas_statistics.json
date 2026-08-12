@@ -1,0 +1,30 @@
+{
+  "deployment_id": "0x71668f737d859d977DA13f952f3F0B03DC00ca01",
+  "gas_csv_rows": 74,
+  "cptstore_init_rows": 34,
+  "openClaim_raw": {
+    "n": 20,
+    "mean": 196134.8,
+    "population_std": 3.6,
+    "min": 196124,
+    "max": 196136,
+    "range": 12
+  },
+  "openClaim_manuscript": {
+    "n": 19,
+    "mean": 196134.73684210525,
+    "population_std": 3.682706459902295,
+    "min": 196124,
+    "max": 196136,
+    "range": 12
+  },
+  "openClaim_excluded_first_gas": 196136,
+  "submitInference_manuscript": {
+    "n": 20,
+    "mean": 242387,
+    "population_std": 0.0,
+    "min": 242387,
+    "max": 242387,
+    "range": 0
+  }
+}
