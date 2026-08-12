@@ -37,14 +37,6 @@ pragma solidity ^0.8.17;
 
 contract EvidenceRegistry {
 
-    /// @notice Sentinel value denoting an evidence variable that has NOT
-    ///         yet been observed (the symbol $\bot$ in the formal model).
-    /// @dev    Evidence variables are ternary: 0 = observed false,
-    ///         1 = observed true, 2 = UNOBSERVED. Storing "unobserved"
-    ///         distinctly from "observed false" is required for the
-    ///         append-only log to be a faithful inference transcript.
-    uint8 public constant UNOBSERVED = 2;
-
     // ----------------------------------------------------------------
     // Constants
     // ----------------------------------------------------------------
@@ -206,10 +198,10 @@ contract EvidenceRegistry {
     ///         and PPR are marginally independent root nodes in the BN.
     ///
     /// @param  claimId       Internal SELENE claim identifier.
-    /// @param  gps           GPS evidence value in {0, 1, 2}; 2 denotes UNOBSERVED.
-    /// @param  pc            Patient confirmation value in {0, 1, 2}; 2 denotes UNOBSERVED.
-    /// @param  pmd           Physician device log value in {0, 1, 2}; 2 denotes UNOBSERVED.
-    /// @param  pr            Physician prescription value in {0, 1, 2}; 2 denotes UNOBSERVED.
+    /// @param  gps           GPS evidence bit in {0, 1}.
+    /// @param  pc            Patient confirmation bit in {0, 1}.
+    /// @param  pmd           Physician device log bit in {0, 1}.
+    /// @param  pr            Physician prescription bit in {0, 1}.
     /// @param  posteriorPPH  Scaled P(PPH=true|e) in [0, SCALE].
     /// @param  posteriorPPR  Scaled P(PPR=true|e) in [0, SCALE].
     /// @param  submitter     Oracle operator address; must be non-zero.
@@ -224,11 +216,10 @@ contract EvidenceRegistry {
         uint256 posteriorPPR,
         address submitter
     ) external onlyController returns (uint256 evidenceId) {
-        // Ternary evidence: 0 = false, 1 = true, 2 = UNOBSERVED.
-        require(gps <= UNOBSERVED, "EvidenceRegistry: bad gps");
-        require(pc  <= UNOBSERVED, "EvidenceRegistry: bad pc");
-        require(pmd <= UNOBSERVED, "EvidenceRegistry: bad pmd");
-        require(pr  <= UNOBSERVED, "EvidenceRegistry: bad pr");
+        require(gps < 2,   "EvidenceRegistry: bad gps");
+        require(pc  < 2,   "EvidenceRegistry: bad pc");
+        require(pmd < 2,   "EvidenceRegistry: bad pmd");
+        require(pr  < 2,   "EvidenceRegistry: bad pr");
         require(posteriorPPH <= SCALE, "EvidenceRegistry: PPH > SCALE");
         require(posteriorPPR <= SCALE, "EvidenceRegistry: PPR > SCALE");
         require(submitter != address(0), "EvidenceRegistry: zero submitter");

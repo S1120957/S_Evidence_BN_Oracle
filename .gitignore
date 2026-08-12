@@ -33,14 +33,5 @@ build/
 .DS_Store
 Thumbs.db
 
-# Local secrets / environment
+# Local environment file without leading dot
 env
-.env.*
-!.env.example
-
-*.py[cod]
-.pytest_cache/
-
-# OS/editor
-
-# LaTeX build artefacts

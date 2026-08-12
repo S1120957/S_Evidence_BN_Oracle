@@ -71,10 +71,11 @@ interface IEvidenceRegistry {
 ///            EvidenceRegistry.
 ///
 ///         2. submitInference() is restricted to onlyOracleOperator.
-///            openClaim() is intentionally open to any caller.
-///            finalizeClaim() is restricted to the claim opener,
-///            oracle operator, or contract owner, matching the
-///            access control enforced by this contract.
+///            openClaim() and finalizeClaim() are intentionally open
+///            to any caller for the current single-operator prototype,
+///            matching the paper's description of application-initiated
+///            claim management.  In a production deployment these
+///            should be gated by an authorizedApp role.
 ///
 ///         3. BN snapshot consistency.
 ///            submitInference() requires the caller to supply the
@@ -106,18 +107,6 @@ interface IEvidenceRegistry {
 ///            post-deployment substitution attacks.
 
 contract OracleController {
-
-    /// @notice Sentinel value denoting an evidence variable that has NOT
-    ///         yet been observed (the symbol $\bot$ in the formal model).
-    /// @dev    Evidence variables are ternary on-chain:
-    ///           0 = observed false, 1 = observed true, 2 = UNOBSERVED.
-    ///         Encoding "unobserved" explicitly (rather than collapsing it
-    ///         to 0) is what makes the on-chain evidence record a faithful
-    ///         transcript: an auditor reconstructing the posterior from
-    ///         ledger state marginalises exactly the variables the oracle
-    ///         marginalised, so recomputation is exact.
-    uint8 public constant UNOBSERVED = 2;
-
 
     // ----------------------------------------------------------------
     // Roles
@@ -387,10 +376,10 @@ contract OracleController {
     ///         a ReentrancyGuard is not required (see contract NatDoc).
     ///
     /// @param  claimId               Internal claim identifier.
-    /// @param  gps                   GPS evidence value in {0, 1, 2}; 2 denotes UNOBSERVED.
-    /// @param  pc                    Patient confirmation value in {0, 1, 2}; 2 denotes UNOBSERVED.
-    /// @param  pmd                   Physician device log value in {0, 1, 2}; 2 denotes UNOBSERVED.
-    /// @param  pr                    Prescription evidence value in {0, 1, 2}; 2 denotes UNOBSERVED.
+    /// @param  gps                   GPS evidence bit in {0, 1}.
+    /// @param  pc                    Patient confirmation bit in {0, 1}.
+    /// @param  pmd                   Physician device log bit in {0, 1}.
+    /// @param  pr                    Prescription evidence bit in {0, 1}.
     /// @param  posteriorPPH          Scaled P(PPH=true|e) in [0, SCALE].
     /// @param  posteriorPPR          Scaled P(PPR=true|e) in [0, SCALE].
     /// @param  expectedBnInstanceId  bnInstanceId read from CPTStore at
@@ -412,11 +401,10 @@ contract OracleController {
         // --- Checks ---
         uint256 scale = cptStore.SCALE();
 
-        // Ternary evidence: 0 = false, 1 = true, 2 = UNOBSERVED.
-        require(gps <= UNOBSERVED, "OracleController: bad gps");
-        require(pc  <= UNOBSERVED, "OracleController: bad pc");
-        require(pmd <= UNOBSERVED, "OracleController: bad pmd");
-        require(pr  <= UNOBSERVED, "OracleController: bad pr");
+        require(gps < 2, "OracleController: bad gps");
+        require(pc  < 2, "OracleController: bad pc");
+        require(pmd < 2, "OracleController: bad pmd");
+        require(pr  < 2, "OracleController: bad pr");
         require(
             posteriorPPH <= scale,
             "OracleController: posteriorPPH exceeds SCALE"
@@ -429,7 +417,7 @@ contract OracleController {
         bytes32 currentBnInstanceId = cptStore.bnInstanceId();
         require(
             currentBnInstanceId == expectedBnInstanceId,
-            "OracleController: stale BN snapshot"
+            "OracleController: stale BN snapshot â€” CPTStore parameters changed"
         );
 
         // --- Interactions (trusted contracts, no ETH, no callbacks) ---

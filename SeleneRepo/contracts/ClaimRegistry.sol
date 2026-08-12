@@ -299,13 +299,9 @@ contract ClaimRegistry {
     }
 
     /// @notice Returns the full claim record.
-    /// @param  claimId          Internal claim identifier.
-    /// @return id               Internal claim identifier (echoed).
-    /// @return externalKey      Application-supplied external key.
-    /// @return state            Current lifecycle state.
-    /// @return posteriorPPH     Latest scaled P(PPH=true | evidence).
-    /// @return posteriorPPR     Latest scaled P(PPR=true | evidence).
-    /// @return lastUpdatedBlock Block of the most recent posterior write.
+    /// @param  claimId  Internal claim identifier.
+    /// @return id, externalKey, state, posteriorPPH, posteriorPPR,
+    ///         lastUpdatedBlock.
     function getClaim(uint256 claimId)
         external
         view
