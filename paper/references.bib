@@ -1,6 +1,6 @@
-﻿%% ============================================================
+%% ============================================================
 %% references.bib
-%% SELENE: Scalable Evidence-Based Oracles Using Bayesian Networks
+%% LUNA: Scalable Evidence-Based Oracles Using Bayesian Networks
 %% Target: IEEE Journal of Biomedical and Health Informatics
 %% ============================================================
 %% FIXES APPLIED:
@@ -47,15 +47,6 @@
   publisher = {ACM New York, NY}
 }
 
-@techreport{egberts2017oracle,
-  author      = {Egberts, Alexander},
-  title       = {The Oracle Problem---An Analysis of How Blockchain Oracles
-                 Undermine the Advantages of Decentralized Ledger Systems},
-  institution = {EBS University of Business and Law},
-  address     = {Oestrich-Winkel, Germany},
-  year        = {2017},
-  note        = {Available: \url{https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3382343}}
-}
 
 @article{pasdar2021blockchain,
   author  = {Pasdar, Amirmohammad and Dong, Zhongli and Lee, Young Choon},
@@ -149,21 +140,10 @@
   publisher = {Springer}
 }
 
-@article{gueddes2024remote,
-  author    = {Gueddes, Abdelweheb and Mahjoub, Mohamed Ali},
-  title     = {Remote Intervention Assistance System for a Person in
-               Difficulty Based on Probabilistic Ontologies},
-  journal   = {Expert Systems with Applications},
-  volume    = {238},
-  pages     = {121840},
-  year      = {2024},
-  publisher = {Elsevier}
-}
-
 
 %% --- BN-based oracle (prior work, direct baseline) ---
 
-@inproceedings{bn-oracle,
+@inproceedings{naeem2025evidence,
   author       = {Naeem, Tariq and Pirani, Massimiliano and Spalazzi, Luca},
   title        = {Evidence-Based Oracles Using {Bayesian} Network},
   booktitle    = {2025 21st International Conference on Distributed Computing
@@ -219,32 +199,6 @@
   pages        = {159--173},
   year         = {2024},
   organization = {Springer}
-}
-
-@article{liu2024trustworthy,
-  author    = {Liu, Peng and Xian, Youquan and Yao, Chuanjian and
-               Wang, Peng and Wang, Li-e and Li, Xianxian},
-  title     = {A Trustworthy and Consistent Blockchain Oracle Scheme
-               for Industrial Internet of Things},
-  journal   = {IEEE Transactions on Network and Service Management},
-  volume    = {21},
-  number    = {5},
-  pages     = {5135--5148},
-  year      = {2024},
-  publisher = {IEEE}
-}
-
-@article{gupta2023proxy,
-  author    = {Gupta, Ankur and Gupta, Rajesh and Jadav, Dhairya and
-               Tanwar, Sudeep and Kumar, Neeraj and Shabaz, Mohammad},
-  title     = {Proxy Smart Contracts for Zero Trust Architecture
-               Implementation in Decentralised Oracle Networks Based
-               Applications},
-  journal   = {Computer Communications},
-  volume    = {206},
-  pages     = {10--21},
-  year      = {2023},
-  publisher = {Elsevier}
 }
 
 
@@ -337,18 +291,6 @@
   howpublished = {Kleros Technical Report}
 }
 
-@article{mivsic2023toward,
-  author    = {Mi{\v{s}}i{\'c}, Jelena and Mi{\v{s}}i{\'c}, Vojislav B.
-               and Chang, Xiaolin},
-  title     = {Toward Decentralization in {DPoS} Systems: Election,
-               Voting, and Leader Selection Using Virtual Stake},
-  journal   = {IEEE Transactions on Network and Service Management},
-  volume    = {21},
-  number    = {2},
-  pages     = {1777--1790},
-  year      = {2023},
-  publisher = {IEEE}
-}
 
 @article{shamsi2021prediction,
   author    = {Shamsi, Mahdieh and Cuffe, Paul},
@@ -455,34 +397,6 @@
 
 %% --- Blockchain privacy and identity ---
 
-@article{liang2024identity,
-  author    = {Liang, Wei and Liu, Yaqin and Yang, Ce and Xie, Songyou
-               and Li, Kuanching and Susilo, Willy},
-  title     = {On Identity, Transaction, and Smart Contract Privacy on
-               Permissioned and Permissionless Blockchain: A Comprehensive
-               Survey},
-  journal   = {ACM Computing Surveys},
-  volume    = {56},
-  number    = {12},
-  pages     = {1--35},
-  year      = {2024},
-  publisher = {ACM New York, NY}
-}
-
-@article{bautista2023mpc,
-  author    = {Bautista, Oscar G. and Manshaei, Mohammad Hossein and
-               Hernandez, Richard and Akkaya, Kemal and Homsi, Soamar
-               and Uluagac, Selcuk},
-  title     = {{MPC-ABC}: Blockchain-Based Network Communication for
-               Efficiently Secure Multiparty Computation},
-  journal   = {Journal of Network and Systems Management},
-  volume    = {31},
-  number    = {4},
-  pages     = {68},
-  year      = {2023},
-  publisher = {Springer}
-}
-
 
 %% --- Oracle literature reviews ---
 
@@ -532,3 +446,44 @@
 %% article, Shortliffe & Sepulveda, JAMA 320(21):2199-2200, 2018
 %% "Clinical Decision Support in the Era of AI" 
 
+%% ============================================================
+%% Regulatory / explainability citations (resolved from \addcite)
+%% ============================================================
+
+@misc{eu_mdr_2017,
+  author       = {{European Parliament and Council}},
+  title        = {Regulation (EU) 2017/745 on Medical Devices
+                  (Medical Device Regulation)},
+  howpublished = {Official Journal of the European Union, L 117},
+  year         = {2017},
+  note         = {Article 61 (clinical evaluation);
+                  Annex I (general safety and performance requirements)}
+}
+
+@article{goodman2017right,
+  author  = {Goodman, Bryce and Flaxman, Seth},
+  title   = {European {Union} Regulations on Algorithmic
+             Decision-Making and a ``Right to Explanation''},
+  journal = {AI Magazine},
+  volume  = {38},
+  number  = {3},
+  pages   = {50--57},
+  year    = {2017},
+  doi     = {10.1609/aimag.v38i3.2741}
+}
+
+
+%% ============================================================
+%% Information-theoretic limits on Bayesian estimation risk
+%% ============================================================
+
+@article{esposito2024lower,
+  author  = {Esposito, Amedeo Roberto and Vandenbroucque, Adrien
+             and Gastpar, Michael},
+  title   = {Lower Bounds on the {Bayesian} Risk via Information Measures},
+  journal = {Journal of Machine Learning Research},
+  volume  = {25},
+  number  = {340},
+  pages   = {1--45},
+  year    = {2024}
+}

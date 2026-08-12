@@ -1,19 +1,19 @@
-﻿{
-  "name": "SELENE-bn-oracle",
+{
+  "name": "selene-bn-oracle",
   "version": "1.0.0",
-  "description": "SELENE: Scalable Evidence-Based Oracles Using Bayesian Networks",
+  "private": true,
+  "description": "SELENE: scalable evidence-based Bayesian-network oracle",
   "scripts": {
     "compile": "truffle compile",
     "migrate:sepolia": "truffle migrate --network sepolia --reset",
     "test": "truffle test"
   },
   "dependencies": {
-    "@truffle/hdwallet-provider": "^2.1.15",
-    "dotenv": "^16.0.3"
+    "@truffle/hdwallet-provider": "2.1.15",
+    "dotenv": "16.0.3"
   },
   "devDependencies": {
-    "truffle": "^5.11.5"
+    "truffle": "5.11.5"
   },
   "license": "MIT"
 }
-

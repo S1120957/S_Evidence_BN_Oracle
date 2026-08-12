@@ -1,0 +1,4 @@
+# Python environment used by the final SELENE Path A scripts
+web3==7.16.0
+eth-account==0.13.7
+python-dotenv==1.2.2

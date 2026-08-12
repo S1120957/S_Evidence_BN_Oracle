@@ -1,37 +1,33 @@
-# Secrets - NEVER commit
+# Secrets and local configuration
 .env
-*.key
-*_secret*
+env
+.env.*
+!.env.example
 
 # Python
-__pycache__/
-*.pyc
 .venv/
 venv/
-*.egg-info/
+__pycache__/
+*.py[cod]
+.pytest_cache/
 
 # Node
 node_modules/
-package-lock.json
 
-# Truffle/build artifacts
-deployment/build/
-build/
-
-# LaTeX build artifacts
-*.aux
-*.bbl
-*.blg
-*.log
-*.out
-*.synctex.gz
-*.toc
-*.fls
-*.fdb_latexmk
-
-# OS
+# OS/editor
 .DS_Store
 Thumbs.db
 
-# Local environment file without leading dot
-env
+# LaTeX temporary files
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+
+deployment/build/
+
+SeleneRepo/
